@@ -16,3 +16,7 @@ install:
 
 clean:
 	go clean
+
+docker:
+	export GOOS=linux; export GOARCH=amd64; go build -o qrserve
+	docker build . -t yltd/qrserve:latest

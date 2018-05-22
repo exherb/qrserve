@@ -10,6 +10,7 @@ package main
 // QR code generation. This is the only dependency outside the Go standard
 // library.
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,21 +29,41 @@ const (
 // We only have one endpoint, /, and this is the handler function that should
 // be called for each request to our endpoint.
 func qrHandler(w http.ResponseWriter, req *http.Request) {
-	// First we need to parse the query string so we can pick up the values
-	if err := req.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	parts := strings.Split(req.URL.Path, "/")
+	var data string
+	var sizeStr string
+	var q string
+	partsLen := len(parts)
+	if partsLen > 2 {
+		data = parts[1]
+		decoded, err := base64.StdEncoding.DecodeString(data)
+		if err == nil {
+			data = string(decoded)
+		}
+		sizeStr = parts[2]
+		if len(parts) > 3 {
+			q = parts[3]
+		}
+	} else {
+		// First we need to parse the query string so we can pick up the values
+		if err := req.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		data = req.FormValue("data")
+		sizeStr = req.FormValue("size")
+		q = req.FormValue("q")
 	}
+	q = strings.ToUpper(q)
 
 	// Next we need to get the data (text to be encoded), size (of the generated
 	// code, in pixels),  and error correction level (one of L, Q, M or H).
-	data := req.FormValue("data")
 	if data == "" {
 		http.Error(w, "Data must not be empty", http.StatusBadRequest)
 		return
 	}
 
-	size, err := strconv.Atoi(req.FormValue("size"))
+	size, err := strconv.Atoi(sizeStr)
 	if err != nil {
 		http.Error(w, "Error parsing size: "+err.Error(), http.StatusBadRequest)
 		return
@@ -54,8 +75,7 @@ func qrHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	level := qrcode.Medium // default
-	q := req.FormValue("q")
-	switch strings.ToUpper(q) {
+	switch q {
 	case "L":
 		level = qrcode.Low
 	case "Q":
